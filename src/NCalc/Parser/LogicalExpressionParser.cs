@@ -5,7 +5,6 @@
 using System;
 using System.Globalization;
 using NCalc.Domain;
-using NCalc.Exceptions;
 using Parlot.Fluent;
 using static Parlot.Fluent.Parsers;
 using Identifier = NCalc.Domain.Identifier;
@@ -127,8 +126,7 @@ public static class LogicalExpressionParser
         var closeBrace = Terms.Char(']');
         var questionMark = Terms.Char('?');
         var colon = Terms.Char(':');
-        var negate = Terms.Text("!");
-        var not = Terms.Text("NOT", true);
+        var negate = Terms.Text("Not", true).Or(Terms.Text("!"));
 
         // "(" expression ")"
         var groupExpression = Between(openParen, expression, closeParen);
@@ -212,7 +210,7 @@ public static class LogicalExpressionParser
         // The Recursive helper allows to create parsers that depend on themselves.
         // ( "-" | "not" ) unary | primary;
         var unary = Recursive<LogicalExpression>(u =>
-            minus.Or(not).Or(negate).Or(plus).Or(bitwiseNot).And(u)
+            minus.Or(negate).Or(plus).Or(bitwiseNot).And(u)
                 .Then<LogicalExpression>(static x =>
                 {
                     return x.Item1.ToUpperInvariant() switch
@@ -306,10 +304,8 @@ public static class LogicalExpressionParser
                 {
                     result = op.Item1 switch
                     {
-                        "<>" => new BinaryExpression(BinaryExpressionType.NotEqual, result, op.Item2),
-                        "==" => new BinaryExpression(BinaryExpressionType.Equal, result, op.Item2),
-                        "!=" => new BinaryExpression(BinaryExpressionType.NotEqual, result, op.Item2),
-                        "=" => new BinaryExpression(BinaryExpressionType.Equal, result, op.Item2),
+                        "<>" or "!=" => new BinaryExpression(BinaryExpressionType.NotEqual, result, op.Item2),
+                        "==" or "=" => new BinaryExpression(BinaryExpressionType.Equal, result, op.Item2),
                         _ => null
                     };
                 }
@@ -340,11 +336,9 @@ public static class LogicalExpressionParser
                 {
                     result = op.Item1.ToUpperInvariant() switch
                     {
-                        "AND" => new BinaryExpression(BinaryExpressionType.And, result, op.Item2),
-                        "&&" => new BinaryExpression(BinaryExpressionType.And, result, op.Item2),
+                        "AND" or "&&" => new BinaryExpression(BinaryExpressionType.And, result, op.Item2),
                         "&" => new BinaryExpression(BinaryExpressionType.BitwiseAnd, result, op.Item2),
-                        "OR" => new BinaryExpression(BinaryExpressionType.Or, result, op.Item2),
-                        "||" => new BinaryExpression(BinaryExpressionType.Or, result, op.Item2),
+                        "OR" or "||" => new BinaryExpression(BinaryExpressionType.Or, result, op.Item2),
                         "|" => new BinaryExpression(BinaryExpressionType.BitwiseOr, result, op.Item2),
                         "^" => new BinaryExpression(BinaryExpressionType.BitwiseXOr, result, op.Item2),
                         _ => null
@@ -357,7 +351,8 @@ public static class LogicalExpressionParser
         var ternary = logical.And(ZeroOrOne(questionMark.SkipAnd(logical).AndSkip(colon).And(logical)))
             .Then(x => x.Item2.Item1 == null
                 ? x.Item1
-                : new TernaryExpression(x.Item1, x.Item2.Item1, x.Item2.Item2));
+                : new TernaryExpression(x.Item1, x.Item2.Item1, x.Item2.Item2))
+            .ElseError("Can't parse expression");
 
         expression.Parser = ternary;
         Parser = expression;
