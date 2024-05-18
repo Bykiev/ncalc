@@ -126,7 +126,7 @@ public static class LogicalExpressionParser
         var closeBrace = Terms.Char(']');
         var questionMark = Terms.Char('?');
         var colon = Terms.Char(':');
-        var negate = Terms.Text("Not", true).Or(Terms.Text("!"));
+        var negate = Terms.Text("NOT", true).Or(Terms.Text("!"));
 
         // "(" expression ")"
         var groupExpression = Between(openParen, expression, closeParen);
@@ -351,8 +351,7 @@ public static class LogicalExpressionParser
         var ternary = logical.And(ZeroOrOne(questionMark.SkipAnd(logical).AndSkip(colon).And(logical)))
             .Then(x => x.Item2.Item1 == null
                 ? x.Item1
-                : new TernaryExpression(x.Item1, x.Item2.Item1, x.Item2.Item2))
-            .ElseError("Can't parse expression");
+                : new TernaryExpression(x.Item1, x.Item2.Item1, x.Item2.Item2));
 
         expression.Parser = ternary;
         Parser = expression;
